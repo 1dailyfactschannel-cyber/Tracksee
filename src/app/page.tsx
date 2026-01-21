@@ -25,7 +25,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <div className="flex flex-1">
-        <aside className="hidden w-[200px] flex-col md:flex border-r bg-background">
+        <aside className="hidden w-[200px] flex-col md:flex bg-card shadow-xl z-30">
           <Sidebar />
         </aside>
         <main className="flex-1 space-y-4 p-8 pt-6">

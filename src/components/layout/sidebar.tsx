@@ -17,6 +17,7 @@ import {
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function Sidebar({ className }: SidebarProps) {
+  const pathname = usePathname()
   return (
     <div className={cn("pb-12", className)}>
       <div className="space-y-4 py-4">
@@ -25,18 +26,22 @@ export function Sidebar({ className }: SidebarProps) {
             Tracksee
           </h2>
           <div className="space-y-1">
-            <Button variant="secondary" className="w-full justify-start">
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              Дашборд
-            </Button>
+            <Link href="/">
+                <Button variant={pathname === "/" ? "secondary" : "ghost"} className="w-full justify-start">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Дашборд
+                </Button>
+            </Link>
             <Button variant="ghost" className="w-full justify-start">
               <Activity className="mr-2 h-4 w-4" />
               Мониторинг
             </Button>
-             <Button variant="ghost" className="w-full justify-start">
-              <Server className="mr-2 h-4 w-4" />
-              Приложения
-            </Button>
+            <Link href="/projects">
+                <Button variant={pathname === "/projects" ? "secondary" : "ghost"} className="w-full justify-start">
+                <Server className="mr-2 h-4 w-4" />
+                Приложения
+                </Button>
+            </Link>
             <Button variant="ghost" className="w-full justify-start">
               <Settings className="mr-2 h-4 w-4" />
               Настройки

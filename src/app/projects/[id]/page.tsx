@@ -230,7 +230,9 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                     if (res.ok) {
                         toast.success("Тестовое событие отправлено!")
                         // Force refetch
-                        setDate({...date}) 
+                        if (date?.from && date?.to) {
+                           setDate({ from: date.from, to: date.to })
+                        }
                     } else {
                         const err = await res.json()
                         toast.error(`Ошибка: ${err.error}`)

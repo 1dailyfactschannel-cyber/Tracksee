@@ -68,6 +68,8 @@ export default function ProjectsPage() {
         name: newProjectName,
         url: newProjectUrl,
         user_id: user.id,
+        // @ts-ignore
+        external_api_key: newProjectExternalKey || null
       })
 
       if (error) throw error

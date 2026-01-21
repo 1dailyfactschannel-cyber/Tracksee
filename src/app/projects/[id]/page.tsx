@@ -210,6 +210,37 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                 </div>
             </div>
             <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={async () => {
+                  try {
+                    const res = await fetch("/api/ingest", {
+                        method: "POST",
+                        headers: { 
+                            "Content-Type": "application/json",
+                            "x-api-key": project.api_key
+                        },
+                        body: JSON.stringify({
+                            type: "test",
+                            name: "manual_test",
+                            status_code: 200,
+                            duration: Math.floor(Math.random() * 200) + 50,
+                            path: "/test-path",
+                            message: "Test event triggered manually"
+                        })
+                    })
+                    if (res.ok) {
+                        toast.success("Тестовое событие отправлено!")
+                        // Force refetch
+                        setDate({...date}) 
+                    } else {
+                        const err = await res.json()
+                        toast.error(`Ошибка: ${err.error}`)
+                    }
+                  } catch (e) {
+                      toast.error("Ошибка сети")
+                  }
+              }}>
+                Отправить тест
+              </Button>
               <DateRangePicker date={date} setDate={setDate} />
             </div>
           </div>

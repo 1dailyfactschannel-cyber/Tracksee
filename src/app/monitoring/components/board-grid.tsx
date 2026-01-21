@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Responsive, WidthProvider } from "react-grid-layout"
+import { Responsive, WidthProvider } from "react-grid-layout/legacy"
 import { createClient } from "@/utils/supabase/client"
 import { DashboardData, DashboardWidget, WidgetType } from "../types"
 import { Button } from "@/components/ui/button"

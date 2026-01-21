@@ -1,9 +1,15 @@
-export type WidgetType = 'chart' | 'text' | 'stat' | 'logs';
+export type WidgetType = 
+  | 'text' 
+  | 'stat' 
+  | 'logs'
+  | 'chart-area' 
+  | 'chart-line' 
+  | 'chart-bar';
 
 export type WidgetConfig = {
   title?: string;
   projectId?: string;
-  metric?: 'latency' | 'errors' | 'requests';
+  metric?: 'latency' | 'errors' | 'requests' | 'status';
   content?: string; // Markdown supported
 }
 

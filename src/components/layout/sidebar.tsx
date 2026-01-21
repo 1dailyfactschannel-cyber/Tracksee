@@ -32,10 +32,12 @@ export function Sidebar({ className }: SidebarProps) {
                 Дашборд
                 </Button>
             </Link>
-            <Button variant="ghost" className="w-full justify-start">
-              <Activity className="mr-2 h-4 w-4" />
-              Мониторинг
-            </Button>
+            <Link href="/monitoring">
+                <Button variant={pathname === "/monitoring" ? "secondary" : "ghost"} className="w-full justify-start">
+                <Activity className="mr-2 h-4 w-4" />
+                Мониторинг
+                </Button>
+            </Link>
             <Link href="/projects">
                 <Button variant={pathname === "/projects" ? "secondary" : "ghost"} className="w-full justify-start">
                 <Server className="mr-2 h-4 w-4" />

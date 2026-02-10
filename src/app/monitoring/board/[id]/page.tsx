@@ -1,4 +1,5 @@
-import { createClient } from "@/utils/supabase/server"
+import { db } from "@/lib/db"
+import { getUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { BoardGrid } from "../../components/board-grid"
 import { DashboardData } from "../../types"
@@ -11,20 +12,20 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { id } = await params
-  const supabase = await createClient()
+  const user = await getUser()
 
-  const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     redirect("/login")
   }
 
-  const { data: dashboard, error } = await supabase
-    .from("monitoring_dashboards")
-    .select("*")
-    .eq("id", id)
-    .single()
+  const result = await db.query(
+    "SELECT * FROM monitoring_dashboards WHERE id = $1 AND user_id = $2",
+    [id, user.id]
+  )
 
-  if (error || !dashboard) {
+  const dashboard = result.rows[0]
+
+  if (!dashboard) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">

@@ -1,12 +1,11 @@
 "use client"
 
-import { use, useState, useEffect } from "react"
+import { use, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { createClient } from "@/utils/supabase/client"
 import { Header } from "@/components/layout/header"
 import { Sidebar } from "@/components/layout/sidebar"
 import { DateRangePicker } from "@/components/date-range-picker"
-import { addDays, subDays, format } from "date-fns"
+import { subDays, format } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,7 +33,19 @@ interface ProjectDetailsPageProps {
   }>
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface ProjectEvent {
+  id: string
+  created_at: string
+  type: string
+  name: string
+  status_code: number
+  duration: number
+  path: string
+  message: string
+  metadata: Record<string, unknown> | null
+}
+
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number | string }[]; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg border bg-background p-2 shadow-sm">
@@ -65,7 +76,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) {
   const { id } = use(params)
   
-  const supabase = createClient()
   const [date, setDate] = useState<DateRange | undefined>({
     from: subDays(new Date(), 7),
     to: new Date(),
@@ -76,14 +86,9 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
   const { data: project } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", id)
-        .single()
-      
-      if (error) throw error
-      return data
+      const res = await fetch(`/api/projects?id=${id}`)
+      if (!res.ok) throw new Error("Failed to fetch project")
+      return res.json()
     },
   })
 
@@ -96,7 +101,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 url: project.url,
-                // @ts-ignore
+                // @ts-expect-error project might have external_api_key from database
                 externalApiKey: project.external_api_key 
             })
         })
@@ -106,7 +111,8 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
         } else {
             toast.error(`Ошибка доступности: ${data.status} ${data.statusText}`)
         }
-    } catch (e) {
+    } catch (error) {
+        console.error(error)
         toast.error("Не удалось проверить статус")
     } finally {
         setChecking(false)
@@ -122,15 +128,9 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
       const from = date.from.toISOString()
       const to = date.to.toISOString()
 
-      const { data: events, error } = await supabase
-        .from("events")
-        .select("*")
-        .eq("project_id", id)
-        .gte("created_at", from)
-        .lte("created_at", to)
-        .order("created_at", { ascending: false }) // Newest first for logs
-
-      if (error) throw error
+      const res = await fetch(`/api/events?projectId=${id}&from=${from}&to=${to}&limit=1000`)
+      if (!res.ok) throw new Error("Failed to fetch events")
+      const events: ProjectEvent[] = await res.json()
 
       // Process data for charts
       const requestsMap = new Map<string, number>()
@@ -145,7 +145,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
       // Sort events for charts (oldest first)
       const sortedEvents = [...events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-      sortedEvents.forEach(event => {
+      sortedEvents.forEach((event) => {
         const d = new Date(event.created_at)
         const timeKey = format(d, dateFormat, { locale: ru })
 
@@ -179,7 +179,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
         errors: errors.length > 0 ? errors : [{name: "Нет ошибок", value: 0}],
         latency: latency.length > 0 ? latency : [{time: "Нет данных", value: 0}],
         totalRequests: events.length,
-        totalErrors: events.filter(e => e.status_code && e.status_code >= 400).length,
+        totalErrors: events.filter((e) => e.status_code && e.status_code >= 400).length,
         avgLatency: events.reduce((acc, curr) => acc + (curr.duration || 0), 0) / (events.length || 1),
         rawEvents: events // Return all events for the table
       }
@@ -237,7 +237,8 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                         const err = await res.json()
                         toast.error(`Ошибка: ${err.error}`)
                     }
-                  } catch (e) {
+                  } catch (error) {
+                      console.error(error)
                       toast.error("Ошибка сети")
                   }
               }}>
@@ -363,37 +364,106 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
           {/* Integration Info */}
           <Card>
               <CardHeader>
-                  <CardTitle>Интеграция</CardTitle>
+                  <CardTitle>Интеграция с вашим сайтом</CardTitle>
               </CardHeader>
               <CardContent>
                   <div className="grid gap-6 md:grid-cols-2">
-                      <div>
-                        <p className="mb-4 text-sm text-muted-foreground">
-                            Используйте этот API ключ для отправки метрик:
-                        </p>
-                        <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
-                            {project.api_key}
-                        </code>
-                        <div className="mt-4">
-                            <p className="text-sm font-bold">Webhook URL:</p>
-                            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs font-semibold break-all">
-                                https://tracksee.vercel.app/api/ingest?key={project.api_key}
-                            </code>
+                      <div className="space-y-4">
+                        <div>
+                            <p className="mb-2 text-sm font-medium">Endpoint URL:</p>
+                            <div className="flex items-center gap-2">
+                                <code className="flex-1 relative rounded bg-muted px-3 py-2 font-mono text-sm font-semibold border">
+                                    {typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : 'https://your-domain.com/api/ingest'}
+                                </code>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : '';
+                                    navigator.clipboard.writeText(url);
+                                    toast.success("URL скопирован!");
+                                }}>Копировать</Button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="mb-2 text-sm font-medium">Ваш API ключ:</p>
+                            <div className="flex items-center gap-2">
+                                <code className="flex-1 relative rounded bg-muted px-3 py-2 font-mono text-sm font-semibold border">
+                                    {project.api_key}
+                                </code>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                    navigator.clipboard.writeText(project.api_key);
+                                    toast.success("Ключ скопирован!");
+                                }}>Копировать</Button>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium">Как интегрировать:</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Чтобы начать отслеживать события на вашем сайте, добавьте вызов API в код вашего приложения. 
+                                Вы можете использовать любой HTTP клиент для отправки POST-запросов на наш сервер.
+                            </p>
+                        </div>
+
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                💡 Совет: Отправляйте события при загрузке страницы, входах в систему или возникновении ошибок для детального мониторинга.
+                            </p>
                         </div>
                       </div>
-                      <div>
-                          <p className="text-sm font-bold">Пример cURL:</p>
-                          <pre className="mt-2 w-full overflow-x-auto rounded bg-slate-950 p-4 text-xs text-slate-50">
-{`curl -X POST "https://tracksee.vercel.app/api/ingest" \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: ${project.api_key}" \\
-  -d '{
-    "type": "performance",
-    "name": "page_view",
-    "duration": 125,
-    "status_code": 200
-  }'`}
-                          </pre>
+
+                      <div className="space-y-2">
+                          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Пример кода (JavaScript):</p>
+                          <div className="relative group">
+                              <pre className="w-full overflow-x-auto rounded-lg bg-slate-950 p-4 text-[11px] leading-relaxed text-slate-300 font-mono border border-slate-800 shadow-2xl">
+{`fetch("${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/ingest", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "${project.api_key}"
+  },
+  body: JSON.stringify({
+    type: "page_view",
+    name: document.title,
+    path: window.location.pathname,
+    referrer: document.referrer,
+    screen_resolution: \`\${window.screen.width}x\${window.screen.height}\`,
+    language: navigator.language,
+    session_id: "unique_session_id", 
+    status_code: 200,
+    duration: 150 
+  })
+});`}
+                              </pre>
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                className="absolute top-2 right-2 h-7 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => {
+                                    const code = `fetch("${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/ingest", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "${project.api_key}"
+  },
+  body: JSON.stringify({
+    type: "page_view",
+    name: document.title,
+    path: window.location.pathname,
+    referrer: document.referrer,
+    screen_resolution: \`\${window.screen.width}x\${window.screen.height}\`,
+    language: navigator.language,
+    session_id: "unique_session_id",
+    status_code: 200,
+    duration: 150
+  })
+});`;
+                                    navigator.clipboard.writeText(code);
+                                    toast.success("Пример скопирован!");
+                                }}
+                              >
+                                Копировать код
+                              </Button>
+                          </div>
                       </div>
                   </div>
               </CardContent>

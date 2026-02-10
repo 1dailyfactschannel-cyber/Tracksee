@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/utils/supabase/client"
+import { useEffect, useState, useCallback } from "react"
 import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -11,9 +10,23 @@ interface LogsWidgetProps {
 }
 
 export function LogsWidget({ projectId }: LogsWidgetProps) {
-  const [logs, setLogs] = useState<any[]>([])
+  const [logs, setLogs] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+
+  const fetchLogs = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/events?projectId=${projectId}&limit=20`)
+      if (!res.ok) throw new Error("Error fetching logs")
+      const data = await res.json()
+      setLogs(data || [])
+    } catch (error) {
+      console.error("Error fetching logs", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId])
 
   useEffect(() => {
     if (projectId) {
@@ -27,27 +40,11 @@ export function LogsWidget({ projectId }: LogsWidgetProps) {
         ])
         setLoading(false)
     }
-  }, [projectId])
+  }, [projectId, fetchLogs])
 
-  const fetchLogs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, created_at, status_code, duration, path")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(20)
-
-      if (error) throw error
-      setLogs(data || [])
-    } catch (error) {
-      console.error("Error fetching logs", error)
-    } finally {
-      setLoading(false)
-    }
+  if (loading && logs.length === 0) {
+    return <div className="flex items-center justify-center h-full text-muted-foreground text-xs">Загрузка...</div>
   }
-
-  // if (loading) return <div className="flex items-center justify-center h-full text-muted-foreground">Загрузка...</div>
 
   return (
     <ScrollArea className="h-full w-full">

@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/utils/supabase/client"
+import { useEffect, useState, useCallback } from "react"
 import { 
   ResponsiveContainer, 
   AreaChart, Area, 
@@ -10,52 +9,37 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip 
 } from "recharts"
 import { format } from "date-fns"
-import { WidgetType } from "../../types"
+import { MetricType, ChartVariant } from "../../types"
 
 interface ChartWidgetProps {
   projectId?: string
-  metric?: string
-  title?: string
-  type: WidgetType
+  metric?: MetricType
+  variant?: ChartVariant
+  period?: string
+  refreshInterval?: number
 }
 
-export function ChartWidget({ projectId, metric = "latency", type }: ChartWidgetProps) {
-  const [data, setData] = useState<any[]>([])
+export function ChartWidget({ 
+  projectId, 
+  metric = "visitors", 
+  variant = "area",
+  period = "1h",
+  refreshInterval = 30
+}: ChartWidgetProps) {
+  const [data, setData] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
-  useEffect(() => {
-    if (projectId) {
-      fetchData()
-    } else {
-      // Mock data for preview if no project selected
-      const mockData = Array.from({ length: 20 }, (_, i) => ({
-        time: `${10 + i}:00`,
-        value: Math.floor(Math.random() * 500) + 100
-      }))
-      setData(mockData)
-      setLoading(false)
-    }
-  }, [projectId, metric])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!projectId) return
     try {
-      // Fetch last 50 events
-      const { data: events, error } = await supabase
-        .from("events")
-        .select("created_at, duration, status_code")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(50)
+      const res = await fetch(`/api/events?projectId=${projectId}&metric=${metric}&period=${period}`)
+      if (!res.ok) throw new Error("Error fetching data")
+      const events = await res.json()
 
-      if (error) throw error
-
-      const formattedData = events
-        .reverse()
-        .map(e => ({
-          time: format(new Date(e.created_at), "HH:mm"),
-          value: metric === "latency" ? e.duration : e.status_code
-        }))
+      const formattedData = events.map((e: any) => ({
+        time: format(new Date(e.time), period === '1h' || period === '24h' ? "HH:mm" : "dd.MM HH:mm"),
+        value: Number(e.value)
+      }))
 
       setData(formattedData)
     } catch (error) {
@@ -63,9 +47,26 @@ export function ChartWidget({ projectId, metric = "latency", type }: ChartWidget
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId, metric, period])
 
-  // if (loading) return <div className="flex h-full items-center justify-center text-muted-foreground">Загрузка...</div>
+  useEffect(() => {
+    if (projectId) {
+      fetchData()
+      const interval = setInterval(fetchData, refreshInterval * 1000)
+      return () => clearInterval(interval)
+    } else {
+      const mockData = Array.from({ length: 20 }, (_, i) => ({
+        time: `${10 + i}:00`,
+        value: Math.floor(Math.random() * 500) + 100
+      }))
+      setData(mockData)
+      setLoading(false)
+    }
+  }, [projectId, fetchData, refreshInterval])
+
+  if (loading && data.length === 0) {
+    return <div className="flex items-center justify-center h-full text-muted-foreground text-xs">Загрузка...</div>
+  }
 
   const renderChart = () => {
     const commonProps = {
@@ -74,32 +75,33 @@ export function ChartWidget({ projectId, metric = "latency", type }: ChartWidget
     }
     const color = "hsl(var(--primary))"
 
-    switch (type) {
-      case 'chart-line':
+    switch (variant) {
+      case 'line':
         return (
           <LineChart {...commonProps}>
              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
              <XAxis dataKey="time" hide />
              <YAxis hide domain={['auto', 'auto']} />
              <Tooltip 
-               contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--popover-foreground))' }}
+               contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
              />
              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
           </LineChart>
         )
-      case 'chart-bar':
+      case 'bar':
         return (
           <BarChart {...commonProps}>
              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
              <XAxis dataKey="time" hide />
              <YAxis hide domain={['auto', 'auto']} />
              <Tooltip 
-               contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--popover-foreground))' }}
+               contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
              />
              <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
           </BarChart>
         )
-      case 'chart-area':
       default:
         return (
           <AreaChart {...commonProps}>
@@ -113,7 +115,8 @@ export function ChartWidget({ projectId, metric = "latency", type }: ChartWidget
             <XAxis dataKey="time" hide />
             <YAxis hide domain={['auto', 'auto']} />
             <Tooltip 
-              contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--popover-foreground))' }}
+               contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
             />
             <Area type="monotone" dataKey="value" stroke={color} fillOpacity={1} fill="url(#colorValue)" />
           </AreaChart>
@@ -122,7 +125,7 @@ export function ChartWidget({ projectId, metric = "latency", type }: ChartWidget
   }
 
   return (
-    <div className="h-full w-full p-2 flex flex-col">
+    <div className="h-full w-full">
       <ResponsiveContainer width="100%" height="100%">
         {renderChart()}
       </ResponsiveContainer>

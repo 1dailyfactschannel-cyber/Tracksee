@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { createClient } from "@/utils/supabase/client"
 import { 
   Folder, 
   LayoutDashboard, 
@@ -11,8 +10,7 @@ import {
   ChevronRight, 
   ChevronDown, 
   MoreVertical,
-  Trash2,
-  Edit2
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,22 +41,23 @@ type DashboardType = {
   id: string
   name: string
   folder_id: string | null
+  project_id: string
 }
 
 export function MonitoringSidebar() {
   const [folders, setFolders] = useState<FolderType[]>([])
   const [dashboards, setDashboards] = useState<DashboardType[]>([])
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
-  const [loading, setLoading] = useState(true)
   const [newFolderName, setNewFolderName] = useState("")
   const [newDashboardName, setNewDashboardName] = useState("")
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("")
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false)
   const [isDashboardDialogOpen, setIsDashboardDialogOpen] = useState(false)
   
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     fetchData()
@@ -66,21 +65,28 @@ export function MonitoringSidebar() {
 
   const fetchData = async () => {
     try {
-      const [foldersRes, dashboardsRes] = await Promise.all([
-        supabase.from("monitoring_folders").select("*").order("name"),
-        supabase.from("monitoring_dashboards").select("id, name, folder_id").order("name")
+      const [foldersRes, dashboardsRes, projectsRes] = await Promise.all([
+        fetch("/api/folders"),
+        fetch("/api/dashboards"),
+        fetch("/api/projects")
       ])
 
-      if (foldersRes.error) throw foldersRes.error
-      if (dashboardsRes.error) throw dashboardsRes.error
+      if (!foldersRes.ok || !dashboardsRes.ok || !projectsRes.ok) throw new Error("Fetch failed")
 
-      setFolders(foldersRes.data || [])
-      setDashboards(dashboardsRes.data || [])
+      const foldersData = await foldersRes.json()
+      const dashboardsData = await dashboardsRes.json()
+      const projectsData = await projectsRes.json()
+
+      setFolders(foldersData || [])
+      setDashboards(dashboardsData || [])
+      setProjects(projectsData || [])
+      
+      if (projectsData.length > 0) {
+        setSelectedProjectId(projectsData[0].id)
+      }
     } catch (error) {
       console.error("Error fetching monitoring data:", error)
       toast.error("Не удалось загрузить структуру мониторинга")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -95,22 +101,20 @@ export function MonitoringSidebar() {
     if (!newFolderName.trim()) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("No user")
+      const res = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newFolderName })
+      })
 
-      const { data, error } = await supabase
-        .from("monitoring_folders")
-        .insert({ name: newFolderName, user_id: user.id })
-        .select()
-        .single()
-
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to create folder")
+      const data = await res.json()
 
       setFolders([...folders, data])
       setNewFolderName("")
       setIsFolderDialogOpen(false)
       toast.success("Папка создана")
-    } catch (error) {
+    } catch {
       toast.error("Ошибка при создании папки")
     }
   }
@@ -119,27 +123,25 @@ export function MonitoringSidebar() {
     if (!newDashboardName.trim()) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("No user")
-
-      const { data, error } = await supabase
-        .from("monitoring_dashboards")
-        .insert({ 
+      const res = await fetch("/api/dashboards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
           name: newDashboardName, 
           folder_id: selectedFolderId,
-          user_id: user.id 
+          project_id: selectedProjectId
         })
-        .select()
-        .single()
+      })
 
-      if (error) throw error
+      if (!res.ok) throw new Error("Failed to create dashboard")
+      const data = await res.json()
 
       setDashboards([...dashboards, data])
       setNewDashboardName("")
       setIsDashboardDialogOpen(false)
       router.push(`/monitoring/board/${data.id}`)
       toast.success("Дашборд создан")
-    } catch (error) {
+    } catch {
       toast.error("Ошибка при создании дашборда")
     }
   }
@@ -147,19 +149,14 @@ export function MonitoringSidebar() {
   const deleteFolder = async (id: string) => {
     if (!confirm("Вы уверены? Все дашборды в этой папке будут перемещены в 'Общие'.")) return
     
-    // First update dashboards to have null folder_id (General)
-    // Note: On Delete Set Null in DB constraint handles this, but let's be safe/explicit if needed.
-    // Actually the DB schema has "on delete set null", so we just delete the folder.
-    
     try {
-      const { error } = await supabase.from("monitoring_folders").delete().eq("id", id)
-      if (error) throw error
+      const res = await fetch(`/api/folders?id=${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete folder")
       
       setFolders(folders.filter(f => f.id !== id))
-      // Refetch dashboards as their folder_id might have changed to null
       fetchData()
       toast.success("Папка удалена")
-    } catch (error) {
+    } catch {
       toast.error("Ошибка удаления папки")
     }
   }
@@ -168,15 +165,15 @@ export function MonitoringSidebar() {
     if (!confirm("Вы уверены?")) return
 
     try {
-      const { error } = await supabase.from("monitoring_dashboards").delete().eq("id", id)
-      if (error) throw error
+      const res = await fetch(`/api/dashboards?id=${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete dashboard")
 
       setDashboards(dashboards.filter(d => d.id !== id))
       if (pathname === `/monitoring/board/${id}`) {
         router.push("/monitoring")
       }
       toast.success("Дашборд удален")
-    } catch (error) {
+    } catch {
       toast.error("Ошибка удаления дашборда")
     }
   }
@@ -250,6 +247,21 @@ export function MonitoringSidebar() {
                     <option value="">Общие</option>
                     {folders.map(f => (
                         <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                    </select>
+                </div>
+                <div>
+                    <Label htmlFor="dash-project">Проект</Label>
+                    <select 
+                    id="dash-project"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    required
+                    >
+                    <option value="" disabled>Выберите проект</option>
+                    {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                     </select>
                 </div>

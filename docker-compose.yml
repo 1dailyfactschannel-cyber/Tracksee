@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tracksee-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tracksee-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: tracksee-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tracksee_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracksee_password}
+      POSTGRES_DB: ${POSTGRES_DB:-tracksee_db}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tracksee_user} -d ${POSTGRES_DB:-tracksee_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tracksee-network
+
+networks:
+  tracksee-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

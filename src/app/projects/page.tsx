@@ -1,13 +1,11 @@
-
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, Copy, Trash2, Globe, ExternalLink } from "lucide-react"
+import { Plus, Copy, Globe, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
-import { createClient } from "@/utils/supabase/client"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import {
   Card,
   CardContent,
@@ -42,43 +40,38 @@ export default function ProjectsPage() {
   const [isOpen, setIsOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState("")
   const [newProjectUrl, setNewProjectUrl] = useState("")
-  const [newProjectExternalKey, setNewProjectExternalKey] = useState("")
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false })
-      
-      if (error) throw error
-      return data as Project[]
+      const res = await fetch("/api/projects")
+      if (!res.ok) throw new Error("Ошибка при загрузке проектов")
+      return res.json() as Promise<Project[]>
     },
   })
 
   const createProject = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Пользователь не авторизован")
-
-      const { error } = await supabase.from("projects").insert({
-        name: newProjectName,
-        url: newProjectUrl,
-        user_id: user.id,
-        external_api_key: newProjectExternalKey || null
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newProjectName,
+          url: newProjectUrl,
+        }),
+        headers: { "Content-Type": "application/json" },
       })
-
-      if (error) throw error
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Ошибка при создании проекта")
+      }
+      return res.json()
     },
     onSuccess: () => {
       toast.success("Проект успешно создан")
       setIsOpen(false)
       setNewProjectName("")
       setNewProjectUrl("")
-      setNewProjectExternalKey("")
       queryClient.invalidateQueries({ queryKey: ["projects"] })
     },
     onError: (error) => {
@@ -98,67 +91,49 @@ export default function ProjectsPage() {
         <aside className="hidden w-[200px] flex-col md:flex bg-card shadow-xl z-30">
           <Sidebar />
         </aside>
-        <main className="flex-1 space-y-4 p-8 pt-6">
-          <div className="flex items-center justify-between space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight">Проекты</h2>
+        <main className="flex-1 p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold">Мои проекты</h1>
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="mr-2 h-4 w-4" /> Добавить проект
+                  <Plus className="mr-2 h-4 w-4" />
+                  Новый проект
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+              <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Новый проект</DialogTitle>
+                  <DialogTitle>Создать новый проект</DialogTitle>
                   <DialogDescription>
-                    Создайте новый проект для отслеживания метрик.
+                    Добавьте проект для мониторинга событий и метрик.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Название
-                    </Label>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Название проекта</Label>
                     <Input
                       id="name"
+                      placeholder="My Awesome App"
                       value={newProjectName}
                       onChange={(e) => setNewProjectName(e.target.value)}
-                      className="col-span-3"
-                      placeholder="My Awesome App"
                     />
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="url" className="text-right">
-                      URL
-                    </Label>
+                  <div className="grid gap-2">
+                    <Label htmlFor="url">URL проекта</Label>
                     <Input
                       id="url"
+                      placeholder="https://example.com"
                       value={newProjectUrl}
                       onChange={(e) => setNewProjectUrl(e.target.value)}
-                      className="col-span-3"
-                      placeholder="https://example.com"
                     />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="apiKey" className="text-right">
-                      Внешний API Key
-                    </Label>
-                    <div className="col-span-3 space-y-1">
-                      <Input
-                        id="apiKey"
-                        placeholder="Ключ от Point Flow (опционально)"
-                        value={newProjectExternalKey}
-                        onChange={(e) => setNewProjectExternalKey(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Укажите ключ, если Tracksee должен сам запрашивать данные у этого сайта.
-                      </p>
-                    </div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={() => createProject.mutate()} disabled={createProject.isPending}>
-                    {createProject.isPending ? "Создание..." : "Создать"}
+                  <Button 
+                    onClick={() => createProject.mutate()} 
+                    disabled={createProject.isPending || !newProjectName}
+                  >
+                    {createProject.isPending ? "Создание..." : "Создать проект"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -166,65 +141,77 @@ export default function ProjectsPage() {
           </div>
 
           {isLoading ? (
-            <div className="flex h-[200px] items-center justify-center">
-              <p className="text-muted-foreground">Загрузка проектов...</p>
-            </div>
-          ) : projects?.length === 0 ? (
-            <div className="flex h-[400px] flex-col items-center justify-center rounded-md border border-dashed text-center animate-in fade-in-50">
-              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <Globe className="h-5 w-5" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold">Нет проектов</h3>
-              <p className="mb-4 mt-2 text-sm text-muted-foreground">
-                Вы пока не добавили ни одного проекта для отслеживания.
-              </p>
-              <Button onClick={() => setIsOpen(true)}>Добавить первый проект</Button>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <div className="h-48 bg-muted rounded-t-lg" />
+                </Card>
+              ))}
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {projects?.map((project) => (
                 <Card key={project.id}>
                   <CardHeader>
-                    <CardTitle>{project.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-1">
-                        <Globe className="h-3 w-3" />
-                        {project.url || "Нет URL"}
+                    <div className="flex items-center justify-between">
+                      <CardTitle>{project.name}</CardTitle>
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <CardDescription className="truncate">
+                      {project.url || "Нет URL"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">API Key</Label>
-                      <div className="flex items-center space-x-2">
-                        <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold truncate w-full">
-                          {project.api_key}
-                        </code>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() => copyToClipboard(project.api_key)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase text-muted-foreground">
+                          API Key
+                        </Label>
+                        <div className="flex items-center space-x-2">
+                          <Input 
+                            value={project.api_key} 
+                            readOnly 
+                            className="font-mono text-xs"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => copyToClipboard(project.api_key)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-between">
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(project.api_key)}>
-                        <Copy className="mr-2 h-4 w-4" />
-                        API Key
-                      </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={project.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Сайт
+                      </a>
+                    </Button>
+                    <Button variant="secondary" size="sm" asChild>
                       <Link href={`/projects/${project.id}`}>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Детали
-                        </Button>
+                        Детали
                       </Link>
-                    </div>
+                    </Button>
                   </CardFooter>
                 </Card>
               ))}
+            </div>
+          )}
+
+          {projects?.length === 0 && (
+            <div className="text-center py-20 bg-muted/20 rounded-lg border-2 border-dashed">
+              <h3 className="text-lg font-medium">Нет проектов</h3>
+              <p className="text-muted-foreground mb-4">
+                Создайте свой первый проект, чтобы начать мониторинг.
+              </p>
+              <Button onClick={() => setIsOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Создать проект
+              </Button>
             </div>
           )}
         </main>

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { MobileSidebar } from "./sidebar"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,28 +14,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { createClient } from "@/utils/supabase/client"
-import { LogOut, User } from "lucide-react"
+import Link from "next/link"
+import { LogOut } from "lucide-react"
 
 export function Header() {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUserEmail(user.email ?? null)
+    const fetchUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me")
+        if (res.ok) {
+          const data = await res.json()
+          setUserEmail(data.user.email)
+        }
+      } catch (error) {
+        console.error("Error fetching user", error)
       }
     }
-    getUser()
+    fetchUser()
   }, [])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
-    router.refresh()
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+      router.push("/login")
+      router.refresh()
+    } catch (error) {
+      console.error("Error logging out", error)
+    }
   }
 
   return (
@@ -43,11 +51,11 @@ export function Header() {
       <div className="container flex h-14 items-center">
         <MobileSidebar />
         <div className="mr-4 hidden md:flex">
-          <a className="mr-6 flex items-center space-x-2" href="/">
+          <Link className="mr-6 flex items-center space-x-2" href="/">
             <span className="hidden font-bold sm:inline-block">
               Tracksee Monitor
             </span>
-          </a>
+          </Link>
         </div>
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
           <div className="w-full flex-1 md:w-auto md:flex-none">
@@ -59,7 +67,6 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="/avatars/01.png" alt="@user" />
                       <AvatarFallback>{userEmail.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   </Button>

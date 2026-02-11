@@ -24,7 +24,10 @@ type ProjectStatus = {
 }
 
 export default function MonitoringPage() {
-  const [projects, setProjects] = useState<Project[]>([])
+  // Environment and text filters for projects
+  const [envFilter, setEnvFilter] = useState<string>("All")
+  const [search, setSearch] = useState<string>("")
+	const [projects, setProjects] = useState<Project[]>([])
   const [statuses, setStatuses] = useState<Record<string, ProjectStatus>>({})
   const [loading, setLoading] = useState(true)
   const [checking, setChecking] = useState(false)
@@ -32,6 +35,13 @@ export default function MonitoringPage() {
   useEffect(() => {
     fetchProjects()
   }, [])
+
+  const environmentFromUrl = (url: string) => {
+    const lower = url?.toLowerCase() ?? ''
+    if (lower.includes('prod') || lower.includes('production')) return 'Prod'
+    if (lower.includes('dev') || lower.includes('staging') || lower.includes('local')) return 'Dev'
+    return 'Other'
+  }
 
   const fetchProjects = async () => {
     try {
@@ -96,6 +106,13 @@ export default function MonitoringPage() {
     setChecking(false)
   }
 
+  const filteredProjects = projects.filter(p => {
+    const env = environmentFromUrl(p.url)
+    const matchEnv = envFilter === 'All' || env === envFilter
+    const matchSearch = p.name.toLowerCase().includes((search || '').toLowerCase())
+    return matchEnv && matchSearch
+  })
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -105,12 +122,27 @@ export default function MonitoringPage() {
             Статус доступности ваших проектов в реальном времени
           </p>
         </div>
-        <Button onClick={checkAll} disabled={checking || loading}>
+        <div className="flex items-center gap-2">
+          <input
+            aria-label="Фильтр окружения"
+            className="border rounded-md px-2 py-1 text-sm"
+            placeholder="Окружение..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select aria-label="Фильтр окружения" value={envFilter} onChange={(e) => setEnvFilter(e.target.value)} className="border rounded-md px-2 py-1 text-sm">
+            <option value="All">Все окружения</option>
+            <option value="Prod">Prod</option>
+            <option value="Dev">Dev</option>
+            <option value="Other">Other</option>
+          </select>
+          <Button onClick={checkAll} disabled={checking || loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${checking ? "animate-spin" : ""}`} />
           Проверить всё
-        </Button>
+          </Button>
+        </div>
       </div>
-
+      
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
@@ -122,7 +154,7 @@ export default function MonitoringPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map(project => {
+          {filteredProjects.map(project => {
             const status = statuses[project.id]
             return (
               <Card key={project.id}>

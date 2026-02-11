@@ -118,6 +118,45 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
     setLayout(updatedLayout)
   }
 
+  // Advanced export: CSV for entire dashboard and quick PDF export (via print)
+  const exportDashboardCSV = async () => {
+    try {
+      const header = 'Widget,Time,Value\n'
+      const lines: string[] = [header]
+      for (const w of layout) {
+        const widgetName = w.config.title || METRICS.find(m => m.id === w.config.metric)?.label || 'Widget'
+        const res = await fetch(`/api/events?projectId=${dashboard.project_id}&metric=${w.config.metric}&period=${w.config.period}`)
+        if (!res.ok) {
+          continue
+        }
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          data.forEach((row: any) => {
+            lines.push(`${widgetName},${row.time},${row.value}`)
+          })
+        }
+        // add a separator line between widgets for readability
+        lines.push('\n')
+      }
+      const csv = lines.filter(l => l !== '').join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dashboard_${dashboard.id}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error('Ошибка экспорта CSV')
+    }
+  }
+
+  const exportPDF = () => {
+    window.print()
+  }
+
   const addWidget = () => {
     let w = 4
     let h = 4
@@ -216,10 +255,16 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
             </Select>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
             <Button onClick={() => saveDashboard(layout)} variant="outline">
                 <Save className="mr-2 h-4 w-4" />
                 Сохранить
+            </Button>
+            <Button onClick={exportDashboardCSV} variant="outline" aria-label="Экспорт CSV дашборда">
+              CSV-экспорт
+            </Button>
+            <Button onClick={exportPDF} variant="outline" aria-label="Печать дашборда">
+              Экспорт PDF
             </Button>
             <Dialog open={isAddWidgetOpen} onOpenChange={setIsAddWidgetOpen}>
                 <DialogTrigger asChild>

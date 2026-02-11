@@ -1,7 +1,8 @@
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 async function initDb() {
   const connectionString = process.env.DATABASE_URL;

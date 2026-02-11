@@ -1,21 +1,31 @@
 import * as jose from 'jose';
 import { cookies } from 'next/headers';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET || 'fallback-secret-for-dev'
-);
+function getSecret(): Uint8Array {
+  // In production, require a configured secret for security.
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('NEXTAUTH_SECRET is not configured in production');
+  }
+  if (!secret) {
+    console.warn('NEXTAUTH_SECRET not set; using development fallback secret.');
+  }
+  return new TextEncoder().encode(secret ?? 'fallback-secret-for-dev');
+}
 
 export async function signToken(payload: jose.JWTPayload) {
+  const key = getSecret();
   return new jose.SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(JWT_SECRET);
+    .sign(key);
 }
 
 export async function verifyToken(token: string) {
   try {
-    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
+    const key = getSecret();
+    const { payload } = await jose.jwtVerify(token, key);
     return payload;
   } catch (error) {
     console.error('Token verification error:', error);

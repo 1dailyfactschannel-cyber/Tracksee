@@ -9,7 +9,7 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:D2rGkB6CaIwpb@tracksee-db:5432/tracksee
       NEXTAUTH_SECRET: asdasdLskksak111LLS
-      NEXTAUTH_URL: http://89.208.14.253:5440
+      NEXTAUTH_URL: https://tracksee.ru
       NODE_ENV: production
       PORT: 3000
     ports:

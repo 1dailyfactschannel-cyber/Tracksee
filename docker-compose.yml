@@ -10,6 +10,7 @@ services:
       DATABASE_URL: postgres://postgres:D2rGkB6CaIwpb@tracksee-db:5432/tracksee
       NEXTAUTH_SECRET: asdasdLskksak111LLS
       NEXTAUTH_URL: https://tracksee.ru
+      NEXTAUTH_TRUST_HOST: true
       NODE_ENV: production
       PORT: 3000
     ports:

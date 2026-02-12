@@ -1,11 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Responsive, WidthProvider } from "react-grid-layout/legacy"
-import { createClient } from "@/utils/supabase/client"
-import { DashboardData, DashboardWidget, WidgetType } from "../types"
+import { Responsive, WidthProvider, Layout } from "react-grid-layout/legacy"
+import { DashboardData, DashboardWidget } from "../types"
 import { Button } from "@/components/ui/button"
-import { Settings, Trash2, Plus, Save, Activity, AreaChart as AreaChartIcon, BarChart3, Binary, List, Type } from "lucide-react"
+import { 
+  Trash2, 
+  Plus, 
+  Save, 
+  Activity, 
+  AreaChart as AreaChartIcon, 
+  BarChart3, 
+  RefreshCw,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -18,14 +25,12 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import debounce from "lodash/debounce"
 
 import { ChartWidget } from "./widgets/chart-widget"
 import { StatWidget } from "./widgets/stat-widget"
-import { LogsWidget } from "./widgets/logs-widget"
 
 import "react-grid-layout/css/styles.css"
 import "react-resizable/css/styles.css"
@@ -36,59 +41,71 @@ interface BoardGridProps {
   dashboard: DashboardData
 }
 
-const WIDGET_TYPES: { id: WidgetType; label: string; icon: any; description: string }[] = [
-  { id: 'chart-line', label: 'Линейный график', icon: Activity, description: 'График изменения показателей во времени' },
-  { id: 'chart-area', label: 'Area Chart', icon: AreaChartIcon, description: 'График с заливкой области' },
-  { id: 'chart-bar', label: 'Столбчатая диаграмма', icon: BarChart3, description: 'Сравнение показателей по категориям' },
-  { id: 'stat', label: 'Статистика', icon: Binary, description: 'Одиночное значение метрики' },
-  { id: 'logs', label: 'Логи', icon: List, description: 'Таблица последних событий' },
-  { id: 'text', label: 'Текст', icon: Type, description: 'Текстовый блок или Markdown' },
+const METRICS = [
+  { id: 'visitors', label: 'Посетители' },
+  { id: 'requests', label: 'Запросы' },
+  { id: 'auths', label: 'Авторизации' },
+  { id: 'errors', label: 'Ошибки' },
+  { id: 'avg_duration', label: 'Время на сайте' },
+]
+
+const PERIODS = [
+  { id: '1h', label: '1 час' },
+  { id: '24h', label: '24 часа' },
+  { id: '7d', label: '7 дней' },
+  { id: '30d', label: '30 дней' },
 ]
 
 export function BoardGrid({ dashboard }: BoardGridProps) {
   const [layout, setLayout] = useState<DashboardWidget[]>(dashboard.layout || [])
-  const [projects, setProjects] = useState<any[]>([])
   const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState(dashboard.refresh_interval || 30)
   
   // New Widget State
-  const [newWidgetType, setNewWidgetType] = useState<WidgetType>("text")
   const [newWidgetTitle, setNewWidgetTitle] = useState("")
-  const [newWidgetContent, setNewWidgetContent] = useState("")
-  const [newWidgetProjectId, setNewWidgetProjectId] = useState<string>("")
-  const [newWidgetMetric, setNewWidgetMetric] = useState<string>("latency")
-
-  const supabase = createClient()
+  const [newWidgetMetric, setNewWidgetMetric] = useState<DashboardWidget['config']['metric']>("visitors")
+  const [newWidgetVariant, setNewWidgetVariant] = useState<DashboardWidget['config']['variant']>("area")
+  const [newWidgetPeriod, setNewWidgetPeriod] = useState<DashboardWidget['config']['period']>("1h")
+  const [newWidgetShowAs, setNewWidgetShowAs] = useState<DashboardWidget['config']['showAs']>("chart")
 
   useEffect(() => {
-    fetchProjects()
-  }, [])
-
-  const fetchProjects = async () => {
-    const { data } = await supabase.from("projects").select("id, name")
-    if (data) setProjects(data)
-  }
+    if (dashboard.refresh_interval) {
+      setRefreshInterval(dashboard.refresh_interval)
+    }
+    if (dashboard.layout) {
+      setLayout(dashboard.layout)
+    }
+  }, [dashboard.refresh_interval, dashboard.layout])
 
   // Save layout to DB
-  const saveLayout = useCallback(
-    async (newLayout: DashboardWidget[]) => {
+  const saveDashboard = useCallback(
+    async (newLayout: DashboardWidget[], newInterval?: number) => {
       try {
-        const { error } = await supabase
-          .from("monitoring_dashboards")
-          .update({ layout: newLayout, updated_at: new Date().toISOString() })
-          .eq("id", dashboard.id)
+        const res = await fetch("/api/dashboards", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: dashboard.id,
+            layout: newLayout,
+            refresh_interval: newInterval !== undefined ? newInterval : refreshInterval,
+          }),
+        })
 
-        if (error) throw error
+        if (!res.ok) throw new Error("Failed to save")
         toast.success("Дашборд сохранен")
-      } catch (error) {
+      } catch {
         toast.error("Ошибка сохранения")
       }
     },
-    [dashboard.id, supabase]
+    [dashboard.id, refreshInterval]
   )
 
-  const onLayoutChange = (currentLayout: any) => {
-    const updatedLayout = currentLayout.map((item: any) => {
+  const onLayoutChange = (currentLayout: Layout[]) => {
+    const updatedLayout = currentLayout.map((item) => {
       const existing = layout.find(l => l.i === item.i)
+      if (!existing) return null;
       return {
         ...existing,
         x: item.x,
@@ -96,22 +113,58 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
         w: item.w,
         h: item.h,
       } as DashboardWidget
-    })
+    }).filter(Boolean) as DashboardWidget[]
     
     setLayout(updatedLayout)
+  }
+
+  // Advanced export: CSV for entire dashboard and quick PDF export (via print)
+  const exportDashboardCSV = async () => {
+    try {
+      const header = 'Widget,Time,Value\n'
+      const lines: string[] = [header]
+      for (const w of layout) {
+        const widgetName = w.config.title || METRICS.find(m => m.id === w.config.metric)?.label || 'Widget'
+        const res = await fetch(`/api/events?projectId=${dashboard.project_id}&metric=${w.config.metric}&period=${w.config.period}`)
+        if (!res.ok) {
+          continue
+        }
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          data.forEach((row: any) => {
+            lines.push(`${widgetName},${row.time},${row.value}`)
+          })
+        }
+        // add a separator line between widgets for readability
+        lines.push('\n')
+      }
+      const csv = lines.filter(l => l !== '').join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dashboard_${dashboard.id}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error('Ошибка экспорта CSV')
+    }
+  }
+
+  const exportPDF = () => {
+    window.print()
   }
 
   const addWidget = () => {
     let w = 4
     let h = 4
 
-    if (newWidgetType.startsWith('chart')) {
+    if (newWidgetShowAs === 'chart') {
         w = 6
         h = 6
-    } else if (newWidgetType === 'logs') {
-        w = 12
-        h = 8
-    } else if (newWidgetType === 'stat') {
+    } else {
         w = 3
         h = 3
     }
@@ -122,78 +175,96 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
       y: Infinity, // puts it at the bottom
       w,
       h,
-      type: newWidgetType,
       config: {
-        title: newWidgetTitle,
-        content: newWidgetContent,
-        projectId: newWidgetProjectId,
-        metric: newWidgetMetric as any
+        title: newWidgetTitle || METRICS.find(m => m.id === newWidgetMetric)?.label,
+        metric: newWidgetMetric,
+        variant: newWidgetVariant,
+        period: newWidgetPeriod,
+        showAs: newWidgetShowAs,
       }
     }
 
     const newLayout = [...layout, newWidget]
     setLayout(newLayout)
-    saveLayout(newLayout)
+    saveDashboard(newLayout)
     setIsAddWidgetOpen(false)
     resetForm()
   }
 
   const resetForm = () => {
     setNewWidgetTitle("")
-    setNewWidgetContent("")
-    setNewWidgetProjectId("")
-    setNewWidgetMetric("latency")
-    setNewWidgetType("text")
+    setNewWidgetMetric("visitors")
+    setNewWidgetVariant("area")
+    setNewWidgetPeriod("1h")
+    setNewWidgetShowAs("chart")
   }
 
   const removeWidget = (id: string) => {
     const newLayout = layout.filter(l => l.i !== id)
     setLayout(newLayout)
-    saveLayout(newLayout)
+    saveDashboard(newLayout)
   }
 
   const renderWidgetContent = (widget: DashboardWidget) => {
-    // Backward compatibility for generic 'chart' type
-    const type = widget.type === 'chart' ? 'chart-area' : widget.type
-
-    switch (type) {
-      case "text":
-        return <div className="p-4 text-sm whitespace-pre-wrap">{widget.config.content}</div>
-      case "chart-area":
-      case "chart-line":
-      case "chart-bar":
-        return <ChartWidget 
-            projectId={widget.config.projectId} 
-            metric={widget.config.metric} 
-            title={widget.config.title}
-            type={type} 
+    if (widget.config.showAs === 'number') {
+      return (
+        <StatWidget 
+          projectId={dashboard.project_id} 
+          metric={widget.config.metric} 
+          period={widget.config.period}
+          refreshInterval={refreshInterval}
         />
-      case "stat":
-        return <StatWidget projectId={widget.config.projectId} metric={widget.config.metric} />
-      case "logs":
-        return <LogsWidget projectId={widget.config.projectId} />
-      default:
-        // Fallback for generic 'chart' if missed above or other unknown types
-        if (widget.type === 'chart' as any) {
-             return <ChartWidget 
-                projectId={widget.config.projectId} 
-                metric={widget.config.metric} 
-                title={widget.config.title}
-                type="chart-area" 
-            />
-        }
-        return <div>Unknown Widget: {widget.type}</div>
+      )
     }
+
+    return (
+      <ChartWidget 
+        projectId={dashboard.project_id} 
+        metric={widget.config.metric} 
+        variant={widget.config.variant}
+        period={widget.config.period}
+        refreshInterval={refreshInterval}
+      />
+    )
   }
 
   return (
     <div className="space-y-4 h-full flex flex-col">
       <div className="flex items-center justify-between shrink-0">
-        <h1 className="text-2xl font-bold">{dashboard.name}</h1>
-        <div className="flex gap-2">
-            <Button onClick={() => saveLayout(layout)} variant="outline">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">{dashboard.name}</h1>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="h-4 w-4" />
+            <Select 
+              value={refreshInterval.toString()} 
+              onValueChange={(val) => {
+                const interval = parseInt(val)
+                setRefreshInterval(interval)
+                saveDashboard(layout, interval)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">Обновление: 10с</SelectItem>
+                <SelectItem value="30">Обновление: 30с</SelectItem>
+                <SelectItem value="60">Обновление: 1м</SelectItem>
+                <SelectItem value="300">Обновление: 5м</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex gap-2 items-center">
+            <Button onClick={() => saveDashboard(layout)} variant="outline">
                 <Save className="mr-2 h-4 w-4" />
-                Сохранить расположение
+                Сохранить
+            </Button>
+            <Button onClick={exportDashboardCSV} variant="outline" aria-label="Экспорт CSV дашборда">
+              CSV-экспорт
+            </Button>
+            <Button onClick={exportPDF} variant="outline" aria-label="Печать дашборда">
+              Экспорт PDF
             </Button>
             <Dialog open={isAddWidgetOpen} onOpenChange={setIsAddWidgetOpen}>
                 <DialogTrigger asChild>
@@ -202,88 +273,85 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
                     Добавить виджет
                 </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Добавить виджет</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
-                    
-                    <div className="grid grid-cols-3 gap-4">
-                        {WIDGET_TYPES.map((type) => {
-                            const Icon = type.icon
-                            return (
-                                <Card 
-                                    key={type.id} 
-                                    className={cn(
-                                        "cursor-pointer hover:border-primary transition-colors",
-                                        newWidgetType === type.id ? "border-primary bg-primary/5" : ""
-                                    )}
-                                    onClick={() => setNewWidgetType(type.id)}
-                                >
-                                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                                        <div className="p-2 rounded-full bg-background border">
-                                            <Icon className="h-6 w-6 text-foreground" />
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold">{type.label}</div>
-                                            <div className="text-xs text-muted-foreground">{type.description}</div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )
-                        })}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Заголовок (необязательно)</Label>
+                            <Input value={newWidgetTitle} onChange={e => setNewWidgetTitle(e.target.value)} placeholder="Например: Посетители за час" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Метрика</Label>
+                            <Select value={newWidgetMetric} onValueChange={(val: any) => setNewWidgetMetric(val)}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {METRICS.map(m => (
+                                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
-                    <div className="space-y-4 border-t pt-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Заголовок виджета</Label>
-                            <Input value={newWidgetTitle} onChange={e => setNewWidgetTitle(e.target.value)} placeholder="Например: Ошибки за час" />
+                            <Label>Период</Label>
+                            <Select value={newWidgetPeriod} onValueChange={(val: any) => setNewWidgetPeriod(val)}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {PERIODS.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-
-                        {newWidgetType === "text" && (
                         <div className="space-y-2">
-                            <Label>Текст / Markdown</Label>
-                            <Textarea value={newWidgetContent} onChange={e => setNewWidgetContent(e.target.value)} rows={5} />
+                            <Label>Отображение</Label>
+                            <Tabs value={newWidgetShowAs} onValueChange={(val: any) => setNewWidgetShowAs(val)} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="number">Число</TabsTrigger>
+                                    <TabsTrigger value="chart">График</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
                         </div>
-                        )}
+                    </div>
 
-                        {(newWidgetType.startsWith('chart') || newWidgetType === "stat" || newWidgetType === "logs") && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Проект</Label>
-                                    <Select value={newWidgetProjectId} onValueChange={setNewWidgetProjectId}>
-                                        <SelectTrigger>
-                                        <SelectValue placeholder="Выберите проект" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {projects.map(p => (
-                                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                
-                                {newWidgetType !== 'logs' && (
-                                    <div className="space-y-2">
-                                        <Label>Метрика</Label>
-                                        <Select value={newWidgetMetric} onValueChange={setNewWidgetMetric}>
-                                            <SelectTrigger>
-                                            <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="latency">Время ответа (latency)</SelectItem>
-                                                <SelectItem value="errors">Ошибки (status code)</SelectItem>
-                                                <SelectItem value="requests">Количество запросов</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
+                    {newWidgetShowAs === 'chart' && (
+                        <div className="space-y-2">
+                            <Label>Тип графика</Label>
+                            <div className="grid grid-cols-3 gap-4">
+                                {[
+                                    { id: 'line', label: 'Линии', icon: Activity },
+                                    { id: 'area', label: 'Волны', icon: AreaChartIcon },
+                                    { id: 'bar', label: 'Блоки', icon: BarChart3 },
+                                ].map((v) => (
+                                    <Card 
+                                        key={v.id} 
+                                        className={cn(
+                                            "cursor-pointer hover:border-primary transition-colors",
+                                            newWidgetVariant === v.id ? "border-primary bg-primary/5" : ""
+                                        )}
+                                        onClick={() => setNewWidgetVariant(v.id as any)}
+                                    >
+                                        <CardContent className="p-4 flex flex-col items-center gap-2">
+                                            <v.icon className="h-6 w-6" />
+                                            <span className="text-xs font-medium">{v.label}</span>
+                                        </CardContent>
+                                    </Card>
+                                ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
                 <DialogFooter>
-                    <Button onClick={addWidget} disabled={!newWidgetTitle}>Добавить</Button>
+                    <Button onClick={addWidget}>Добавить</Button>
                 </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -298,11 +366,12 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
         )}
         <ResponsiveGridLayout
           className="layout"
-          layouts={{ lg: layout }}
+          layouts={{ lg: layout as any }}
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
           rowHeight={60}
           onLayoutChange={onLayoutChange}
+          draggableHandle=".drag-handle"
           isDraggable
           isResizable
         >

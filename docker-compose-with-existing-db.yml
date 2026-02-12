@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tracksee-app
+    restart: unless-stopped
+    environment:
+      # ВАЖНО: Замените ИМЯ_КОНТЕЙНЕРА_БД на реальное имя вашего контейнера с PostgreSQL
+      # Узнать можно в Portainer: Containers → имя вашей базы
+      DATABASE_URL: postgres://postgres:D2rGkB6CaIwpb@ИМЯ_КОНТЕЙНЕРА_БД:5432/tracksee
+      
+      NEXTAUTH_SECRET: asdasdLskksak111LLS
+      NEXTAUTH_URL: http://89.208.14.253:5440
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "5440:3000"
+    networks:
+      # ЗАМЕНИТЕ на имя сети вашей базы данных
+      # Узнать в Portainer: Containers → ваша база → Networks
+      - имя_сети_вашей_базы
+    volumes:
+      - app_logs:/app/logs
+
+volumes:
+  app_logs:
+    driver: local
+
+networks:
+  # Подключаемся к существующей сети базы данных
+  имя_сети_вашей_базы:
+    external: true

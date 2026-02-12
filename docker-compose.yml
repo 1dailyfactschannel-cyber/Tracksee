@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tracksee-app
+    restart: unless-stopped
+    environment:
+      # ПОДКЛЮЧЕНИЕ К СУЩЕСТВУЮЩЕЙ БАЗЕ ДАННЫХ
+      # 
+      # ВАЖНО: Замените ИМЯ_КОНТЕЙНЕРА_БД на реальное имя контейнера с PostgreSQL
+      # 
+      # Как узнать имя контейнера:
+      # 1. Portainer → Containers → найдите PostgreSQL
+      # 2. Скопируйте имя контейнера (например: postgres, db, postgresql)
+      #
+      # Примеры DATABASE_URL:
+      # - Если контейнер БД называется "postgres":
+      #   postgres://postgres:D2rGkB6CaIwpb@postgres:5432/tracksee
+      #
+      # - Если контейнер БД называется "db":
+      #   postgres://postgres:D2rGkB6CaIwpb@db:5432/tracksee
+      #
+      # - Если БД на хосте (не в Docker):
+      #   postgres://postgres:D2rGkB6CaIwpb@host.docker.internal:5432/tracksee
+      #
+      DATABASE_URL: ${DATABASE_URL}
+      
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-asdasdLskksak111LLS}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://89.208.14.253:5440}
+      NODE_ENV: production
+      PORT: 3000
+    
+    ports:
+      - "5440:3000"
+    
+    # Если БД в том же Portainer в отдельном Stack:
+    # networks:
+    #   - имя_сети_базы_данных
+    
+    volumes:
+      - app_logs:/app/logs
+
+volumes:
+  app_logs:
+    driver: local
+
+# Раскомментируйте, если нужно подключиться к существующей сети:
+# networks:
+#   имя_сети_базы_данных:
+#     external: true

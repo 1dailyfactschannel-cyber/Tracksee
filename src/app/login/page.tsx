@@ -1,13 +1,12 @@
-
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/utils/supabase/client"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { toast } from "sonner"
 
 export default function LoginPage() {
@@ -15,55 +14,30 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+        headers: { "Content-Type": "application/json" },
       })
 
-      if (error) {
-        toast.error(error.message)
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || "Ошибка входа")
         return
       }
 
       toast.success("Успешный вход")
       router.push("/")
       router.refresh()
-    } catch (error) {
+    } catch {
       toast.error("Произошла ошибка при входе")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSignUp = async () => {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) {
-        toast.error(error.message)
-        return
-      }
-
-      if (data.session) {
-        toast.success("Регистрация успешна")
-        router.push("/")
-        router.refresh()
-      } else {
-        toast.success("Проверьте почту для подтверждения регистрации")
-      }
-    } catch (error) {
-      toast.error("Ошибка регистрации")
     } finally {
       setLoading(false)
     }
@@ -104,17 +78,16 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Загрузка..." : "Войти"}
             </Button>
-            <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
-                disabled={loading}
-                onClick={handleSignUp}
-            >
-              Зарегистрироваться
-            </Button>
           </form>
         </CardContent>
+        <CardFooter className="flex justify-center">
+          <p className="text-sm text-muted-foreground">
+            Нет аккаунта?{" "}
+            <Link href="/signup" className="text-primary hover:underline">
+              Зарегистрироваться
+            </Link>
+          </p>
+        </CardFooter>
       </Card>
     </div>
   )

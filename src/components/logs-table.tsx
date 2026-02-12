@@ -22,7 +22,7 @@ interface LogEvent {
   duration: number
   path: string
   message: string
-  metadata: any
+  metadata: Record<string, unknown> | null
 }
 
 interface LogsTableProps {

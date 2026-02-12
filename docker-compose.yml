@@ -1,46 +1,42 @@
+version: '3.8'
+
 services:
+  # Next.js Application only
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: tracksee-app
-    restart: always
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=http://localhost:3000
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - tracksee-network
-
-  db:
-    image: postgres:15-alpine
-    container_name: tracksee-db
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-tracksee_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracksee_password}
-      POSTGRES_DB: ${POSTGRES_DB:-tracksee_db}
+      # Database - Укажите полный URL к существующей базе данных
+      # Формат: postgres://user:password@host:port/database
+      # Примеры:
+      # - База в другом контейнере: postgres://postgres:D2rGkB6CaIwpb@имя_контейнера_бд:5432/tracksee
+      # - База на хосте: postgres://postgres:D2rGkB6CaIwpb@host.docker.internal:5432/tracksee
+      # - База по IP: postgres://postgres:D2rGkB6CaIwpb@192.168.1.100:5432/tracksee
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # NextAuth Configuration
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-asdasdLskksak111LLS}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://89.208.14.253:5440}
+      
+      # App Configuration
+      NODE_ENV: production
+      PORT: 3000
     ports:
-      - "5435:5432"
+      - "5440:3000"
+    # Если база данных в той же Docker сети, добавьте:
+    # networks:
+    #   - сеть_вашей_базы_данных
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tracksee_user} -d ${POSTGRES_DB:-tracksee_db}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - tracksee-network
-
-networks:
-  tracksee-network:
-    driver: bridge
+      - app_logs:/app/logs
 
 volumes:
-  postgres_data:
+  app_logs:
+    driver: local
+
+# Если нужно подключиться к существующей сети базы данных:
+# networks:
+#   сеть_вашей_базы_данных:
+#     external: true

@@ -17,7 +17,8 @@ import {
   Grid3X3,
   List,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  FolderKanban
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"

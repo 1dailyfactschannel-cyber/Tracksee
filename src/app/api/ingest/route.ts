@@ -7,18 +7,34 @@ export async function POST(request: Request) {
     const apiKey = request.headers.get("x-api-key") || url.searchParams.get("key") || url.searchParams.get("apiKey")
 
     if (!apiKey || apiKey === "undefined") {
-      return NextResponse.json(
-        { error: "Missing or invalid API Key. Provide it via 'x-api-key' header or '?key=' query parameter." },
-        { status: 401 }
+      return new NextResponse(
+        JSON.stringify({ error: "Missing or invalid API Key. Provide it via 'x-api-key' header or '?key=' query parameter." }),
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+          },
+        }
       )
     }
 
     // Basic UUID format check to avoid DB error 22P02
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(apiKey)) {
-      return NextResponse.json(
-        { error: "Invalid API Key format. Must be a valid UUID." },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: "Invalid API Key format. Must be a valid UUID." }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+          },
+        }
       )
     }
 
@@ -65,9 +81,17 @@ export async function POST(request: Request) {
     const project = projectResult.rows[0]
 
     if (!project) {
-       return NextResponse.json(
-        { error: "Invalid API Key" },
-        { status: 401 }
+       return new NextResponse(
+        JSON.stringify({ error: "Invalid API Key" }),
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+          },
+        }
       )
     }
 
@@ -88,12 +112,29 @@ export async function POST(request: Request) {
       ]
     )
 
-    return NextResponse.json({ success: true })
+    // Return with CORS headers for cross-origin requests
+    return new NextResponse(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+      },
+    })
   } catch (error) {
     console.error("Ingest error:", error)
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: "Internal Server Error" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+        },
+      }
     )
   }
 }

@@ -32,7 +32,6 @@ import {
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
-import { ModernLayout } from "@/components/layout/modern-layout"
 import { cn } from "@/lib/utils"
 
 type Project = {
@@ -62,6 +61,19 @@ export default function MonitoringPage() {
     fetchProjects()
   }, [])
 
+  // Автоматическая проверка статуса после загрузки проектов
+  useEffect(() => {
+    if (projects.length > 0 && !loading) {
+      // Проверяем только проекты без статуса (не проверялись еще)
+      const projectsToCheck = projects.filter(p => !statuses[p.id])
+      
+      if (projectsToCheck.length > 0) {
+        projectsToCheck.forEach(project => checkProject(project))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, loading])
+
   const environmentFromUrl = (url: string) => {
     const lower = url?.toLowerCase() ?? ''
     if (lower.includes('prod') || lower.includes('production')) return 'Prod'
@@ -76,11 +88,8 @@ export default function MonitoringPage() {
       const data = await res.json()
       setProjects(data || [])
       
-      const initialStatuses: Record<string, ProjectStatus> = {}
-      data?.forEach((p: Project) => {
-        initialStatuses[p.id] = { id: p.id, status: "pending" }
-      })
-      setStatuses(initialStatuses)
+      // Не устанавливаем статус при загрузке - оставляем пустым
+      // Статус будет установлен при проверке
     } catch {
       toast.error("Ошибка при загрузке проектов")
     } finally {
@@ -145,8 +154,7 @@ export default function MonitoringPage() {
   const pendingCount = Object.values(statuses).filter(s => s.status === "pending").length
 
   return (
-    <ModernLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -252,7 +260,6 @@ export default function MonitoringPage() {
           <EmptyState />
         )}
       </div>
-    </ModernLayout>
   )
 }
 

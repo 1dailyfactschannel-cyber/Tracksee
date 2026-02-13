@@ -857,11 +857,12 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                            </div>
 
                            {/* Предупреждение о localhost (скрыто на проде) */}
-                           {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
+                           {typeof window !== 'undefined' && 
+                            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
                              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2">
                                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">⚠️ Важно:</p>
                                <p className="text-xs text-muted-foreground">
-                                 Сейчас Tracksee работает на localhost:3000 (локально). 
+                                 Сейчас Tracksee работает локально. 
                                  Для получения данных с внешних сайтов нужно задеплоить Tracksee на сервер с публичным доменом.
                                </p>
                              </div>

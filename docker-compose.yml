@@ -7,9 +7,10 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://tracksee_user:D2rGkB6CaIwpb@89.208.14.253:5435/tracksee_db
       - NEXTAUTH_SECRET=asdodfskljfjhsdlkfsdfioue3lwwlkhsd
-      - NEXTAUTH_URL=http://89.208.14.253:3000
+      - NEXTAUTH_URL=https://89.208.14.253
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_APP_URL=https://89.208.14.253
     ports:
       - "3000:3000"
     networks:

@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   tracksee:
     build: .
-    image: tracksee:latest
     container_name: tracksee-app
     restart: unless-stopped
     environment:

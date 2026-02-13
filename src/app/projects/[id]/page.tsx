@@ -101,7 +101,6 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 url: project.url,
-                // @ts-expect-error project might have external_api_key from database
                 externalApiKey: project.external_api_key 
             })
         })
@@ -177,7 +176,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
       sortedEvents.forEach((event) => {
         const d = new Date(event.created_at)
         const timeKey = format(d, dateFormat, { locale: ru })
-        const visitorId = event.metadata?.visitor_id || event.session_id || 'unknown'
+        const visitorId = (event.metadata as any)?.visitor_id || (event as any).session_id || 'unknown'
 
         // Count by type
         switch (event.type) {
@@ -197,15 +196,15 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             break
             
           case 'session_duration':
-            const duration = event.metadata?.duration_seconds || event.duration || 0
+            const duration = Number((event.metadata as any)?.duration_seconds || (event as any).duration || 0)
             if (!sessionDurationMap.has(timeKey)) {
               sessionDurationMap.set(timeKey, [])
             }
             sessionDurationMap.get(timeKey)?.push(duration)
             
             // Track session
-            if (event.session_id) {
-              sessions.set(event.session_id, {
+            if ((event as any).session_id) {
+              sessions.set((event as any).session_id, {
                 start: new Date(event.created_at),
                 end: new Date(new Date(event.created_at).getTime() + duration * 1000),
                 duration: duration
@@ -233,7 +232,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             break
             
           case 'error':
-            const category = event.metadata?.error_category || 'javascript'
+            const category = String((event.metadata as any)?.error_category || 'javascript')
             errorCategoriesMap.set(category, (errorCategoriesMap.get(category) || 0) + 1)
             
             if (category === 'database') {
@@ -1222,11 +1221,13 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                                  variant="secondary" 
                                  size="sm" 
                                  className="absolute top-2 right-2 h-7 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                                 onClick={() => {
-                                     const code = document.querySelector('pre').innerText;
-                                     navigator.clipboard.writeText(code);
-                                     toast.success("Код скопирован! Вставьте перед </body>");
-                                 }}
+                                  onClick={() => {
+                                      const pre = document.querySelector('pre');
+                                      if (pre) {
+                                          navigator.clipboard.writeText(pre.innerText);
+                                          toast.success("Код скопирован! Вставьте перед </body>");
+                                      }
+                                  }}
                                >
                                  Копировать код
                                </Button>

@@ -102,8 +102,8 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
     [dashboard.id, refreshInterval]
   )
 
-  const onLayoutChange = (currentLayout: Layout[]) => {
-    const updatedLayout = currentLayout.map((item) => {
+  const onLayoutChange = (currentLayout: Layout[], layouts: Partial<Record<string, Layout>>) => {
+    const updatedLayout = currentLayout.map((item: any) => {
       const existing = layout.find(l => l.i === item.i)
       if (!existing) return null;
       return {
@@ -370,7 +370,7 @@ export function BoardGrid({ dashboard }: BoardGridProps) {
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
           rowHeight={60}
-          onLayoutChange={onLayoutChange}
+          onLayoutChange={onLayoutChange as any}
           draggableHandle=".drag-handle"
           isDraggable
           isResizable

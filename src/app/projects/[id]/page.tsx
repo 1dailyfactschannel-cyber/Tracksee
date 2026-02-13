@@ -856,17 +856,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                               </ol>
                            </div>
 
-                           {/* Предупреждение о localhost (скрыто на проде) */}
-                           {typeof window !== 'undefined' && 
-                            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-                             <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2">
-                               <p className="text-sm font-medium text-amber-600 dark:text-amber-400">⚠️ Важно:</p>
-                               <p className="text-xs text-muted-foreground">
-                                 Сейчас Tracksee работает локально. 
-                                 Для получения данных с внешних сайтов нужно задеплоить Tracksee на сервер с публичным доменом.
-                               </p>
-                             </div>
-                           )}
+                           {/* Предупреждение о localhost удалено по просьбе пользователя */}
 
                           <div className="relative group">
                               <pre className="w-full overflow-x-auto rounded-lg bg-slate-950 p-4 text-[10px] leading-relaxed text-slate-300 font-mono border border-slate-800 shadow-2xl max-h-[500px] overflow-y-auto">

@@ -9,11 +9,11 @@ services:
       - NEXTAUTH_SECRET=asdodfskljfjhsdlkfsdfioue3lwwlkhsd
       - NEXTAUTH_URL=http://89.208.14.253:3000
       - PORT=3000
+      - HOSTNAME=0.0.0.0
     ports:
       - "3000:3000"
     networks:
       - nginx-proxy-manager_default
-    command: npm start -- -H 0.0.0.0
 
 networks:
   nginx-proxy-manager_default:

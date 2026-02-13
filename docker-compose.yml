@@ -1,24 +1,23 @@
 version: '3.8'
 
 services:
-  app:
-    image: node:20-alpine
+  tracksee:
+    build: .
+    image: tracksee:latest
     container_name: tracksee-app
-    working_dir: /app
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://postgres:D2rGkB6CaIwpb@tracksee-db:5432/tracksee
-      NEXTAUTH_SECRET: asdasdLskksak111LLS
-      NEXTAUTH_URL: https://tracksee.ru
-      NEXTAUTH_TRUST_HOST: true
-      NODE_ENV: production
-      PORT: 3000
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://tracksee_user:D2rGkB6CaIwpb@89.208.14.253:5435/tracksee_db
+      - NEXTAUTH_SECRET=asdodfskljfjhsdlkfsdfioue3lwwlkhsd
+      - NEXTAUTH_URL=http://89.208.14.253:3000
+      - PORT=3000
     ports:
-      - "5440:3000"
-    command: >
-      sh -c "
-        echo 'Installing dependencies...' &&
-        npm install &&
-        npm run build &&
-        npm start
-      "
+      - "3000:3000"
+    networks:
+      - nginx-proxy-manager_default
+    command: npm start -- -H 0.0.0.0
+
+networks:
+  nginx-proxy-manager_default:
+    external: true

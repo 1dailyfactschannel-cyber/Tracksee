@@ -4,18 +4,46 @@ import { db } from "@/lib/db"
 export async function POST(request: Request) {
   try {
     const url = new URL(request.url)
-    const apiKey = request.headers.get("x-api-key") || url.searchParams.get("key") || url.searchParams.get("apiKey")
+    
+    // Read body first to check for API key inside JSON
+    let body: unknown = {}
+    try {
+        body = await request.json()
+    } catch {
+        body = {}
+    }
+    const payload = body as Record<string, unknown>
+
+    let apiKey = request.headers.get("x-api-key") || 
+                 request.headers.get("api-key") || 
+                 url.searchParams.get("key") || 
+                 url.searchParams.get("apiKey")
+
+    // Check Authorization header
+    const authHeader = request.headers.get("authorization");
+    if (!apiKey && authHeader) {
+        if (authHeader.startsWith("Bearer ")) {
+            apiKey = authHeader.substring(7);
+        } else {
+            apiKey = authHeader;
+        }
+    }
+
+    // Check body for API key if not found yet
+    if (!apiKey && payload && (payload.api_key || payload.apiKey || payload.key || payload.token)) {
+        apiKey = (payload.api_key || payload.apiKey || payload.key || payload.token) as string;
+    }
 
     if (!apiKey || apiKey === "undefined") {
       return new NextResponse(
-        JSON.stringify({ error: "Missing or invalid API Key. Provide it via 'x-api-key' header or '?key=' query parameter." }),
+        JSON.stringify({ error: "Missing or invalid API Key. Provide it via 'x-api-key' header, '?key=' query param, or in JSON body." }),
         {
           status: 401,
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
           },
         }
       )
@@ -32,20 +60,11 @@ export async function POST(request: Request) {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
           },
         }
       )
     }
-
-    let body: unknown = {}
-    try {
-        body = await request.json()
-    } catch {
-        body = {}
-    }
-
-    const payload = body as Record<string, unknown>
     
     // Automatic data collection from request headers
     const userAgent = request.headers.get("user-agent") || "unknown"
@@ -89,7 +108,7 @@ export async function POST(request: Request) {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+            "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
           },
         }
       )
@@ -232,7 +251,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+        "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
       },
     })
   } catch (error) {
@@ -245,7 +264,7 @@ export async function POST(request: Request) {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+          "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
         },
       }
     )
@@ -258,7 +277,7 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+      "Access-Control-Allow-Headers": "Content-Type, x-api-key, api-key, Authorization",
     },
   })
 }

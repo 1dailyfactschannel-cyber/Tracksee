@@ -800,11 +800,10 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                             <p className="mb-2 text-sm font-medium">Endpoint URL:</p>
                             <div className="flex items-center gap-2">
                                 <code className="flex-1 relative rounded bg-muted px-3 py-2 font-mono text-sm font-semibold border">
-                                    {typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : 'https://your-domain.com/api/ingest'}
+                                    https://tracksee.ru/api/ingest
                                 </code>
                                 <Button variant="outline" size="sm" onClick={() => {
-                                    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : '';
-                                    navigator.clipboard.writeText(url);
+                                    navigator.clipboard.writeText("https://tracksee.ru/api/ingest");
                                     toast.success("URL скопирован!");
                                 }}>Копировать</Button>
                             </div>
@@ -865,7 +864,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
 (function() {
   const CONFIG = {
     API_KEY: '${project.api_key}',
-    ENDPOINT: '${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/ingest',
+    ENDPOINT: 'https://tracksee.ru/api/ingest',
     PROJECT_ID: '${id}'
   };
 
@@ -967,6 +966,12 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
   const originalFetch = window.fetch;
   window.fetch = function(...args) {
     const url = args[0];
+    
+    // Не отслеживаем запросы к нашему собственному API
+    if (typeof url === 'string' && url.includes(CONFIG.ENDPOINT)) {
+      return originalFetch.apply(this, args);
+    }
+
     const options = args[1] || {};
     const startTime = performance.now();
 
@@ -1012,6 +1017,11 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
     };
 
     xhr.send = function() {
+      // Не отслеживаем запросы к нашему собственному API
+      if (typeof requestUrl === 'string' && requestUrl.includes(CONFIG.ENDPOINT)) {
+        return send.apply(this, arguments);
+      }
+
       startTime = performance.now();
       
       xhr.addEventListener('loadend', function() {

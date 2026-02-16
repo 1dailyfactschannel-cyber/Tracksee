@@ -58,8 +58,8 @@ export function LogsWidget({ projectId }: LogsWidgetProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {logs.map((log) => (
-            <TableRow key={log.id}>
+          {logs.map((log: any) => (
+            <TableRow key={log.id as string}>
               <TableCell className="font-mono text-xs">
                 {format(new Date(log.created_at), "HH:mm:ss")}
               </TableCell>

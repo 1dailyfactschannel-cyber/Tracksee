@@ -101,7 +101,6 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 url: project.url,
-                // @ts-expect-error project might have external_api_key from database
                 externalApiKey: project.external_api_key 
             })
         })
@@ -177,7 +176,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
       sortedEvents.forEach((event) => {
         const d = new Date(event.created_at)
         const timeKey = format(d, dateFormat, { locale: ru })
-        const visitorId = event.metadata?.visitor_id || event.session_id || 'unknown'
+        const visitorId = (event.metadata as any)?.visitor_id || (event as any).session_id || 'unknown'
 
         // Count by type
         switch (event.type) {
@@ -197,15 +196,15 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             break
             
           case 'session_duration':
-            const duration = event.metadata?.duration_seconds || event.duration || 0
+            const duration = Number((event.metadata as any)?.duration_seconds || (event as any).duration || 0)
             if (!sessionDurationMap.has(timeKey)) {
               sessionDurationMap.set(timeKey, [])
             }
             sessionDurationMap.get(timeKey)?.push(duration)
             
             // Track session
-            if (event.session_id) {
-              sessions.set(event.session_id, {
+            if ((event as any).session_id) {
+              sessions.set((event as any).session_id, {
                 start: new Date(event.created_at),
                 end: new Date(new Date(event.created_at).getTime() + duration * 1000),
                 duration: duration
@@ -233,7 +232,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
             break
             
           case 'error':
-            const category = event.metadata?.error_category || 'javascript'
+            const category = String((event.metadata as any)?.error_category || 'javascript')
             errorCategoriesMap.set(category, (errorCategoriesMap.get(category) || 0) + 1)
             
             if (category === 'database') {
@@ -801,11 +800,10 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                             <p className="mb-2 text-sm font-medium">Endpoint URL:</p>
                             <div className="flex items-center gap-2">
                                 <code className="flex-1 relative rounded bg-muted px-3 py-2 font-mono text-sm font-semibold border">
-                                    {typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : 'https://your-domain.com/api/ingest'}
+                                    https://tracksee.ru/api/ingest
                                 </code>
                                 <Button variant="outline" size="sm" onClick={() => {
-                                    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/ingest` : '';
-                                    navigator.clipboard.writeText(url);
+                                    navigator.clipboard.writeText("https://tracksee.ru/api/ingest");
                                     toast.success("URL скопирован!");
                                 }}>Копировать</Button>
                             </div>
@@ -857,18 +855,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                               </ol>
                            </div>
 
-                           {/* Предупреждение о localhost */}
-                           <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2">
-                             <p className="text-sm font-medium text-amber-600 dark:text-amber-400">⚠️ Важно:</p>
-                             <p className="text-xs text-muted-foreground">
-                               Сейчас Tracksee работает на localhost:3000 (локально). 
-                               Для получения данных с внешних сайтов (например, nasty-test.ru) нужно:
-                             </p>
-                             <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                               <li>Задеплоить Tracksee на сервер с публичным IP/доменом, или</li>
-                               <li>Использовать туннель (ngrok, cloudflared) для тестирования</li>
-                             </ul>
-                           </div>
+                           {/* Предупреждение о localhost удалено по просьбе пользователя */}
 
                           <div className="relative group">
                               <pre className="w-full overflow-x-auto rounded-lg bg-slate-950 p-4 text-[10px] leading-relaxed text-slate-300 font-mono border border-slate-800 shadow-2xl max-h-[500px] overflow-y-auto">
@@ -877,7 +864,7 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
 (function() {
   const CONFIG = {
     API_KEY: '${project.api_key}',
-    ENDPOINT: '${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/ingest',
+    ENDPOINT: 'https://tracksee.ru/api/ingest',
     PROJECT_ID: '${id}'
   };
 
@@ -979,6 +966,12 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
   const originalFetch = window.fetch;
   window.fetch = function(...args) {
     const url = args[0];
+    
+    // Не отслеживаем запросы к нашему собственному API
+    if (typeof url === 'string' && url.includes(CONFIG.ENDPOINT)) {
+      return originalFetch.apply(this, args);
+    }
+
     const options = args[1] || {};
     const startTime = performance.now();
 
@@ -1024,6 +1017,11 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
     };
 
     xhr.send = function() {
+      // Не отслеживаем запросы к нашему собственному API
+      if (typeof requestUrl === 'string' && requestUrl.includes(CONFIG.ENDPOINT)) {
+        return send.apply(this, arguments);
+      }
+
       startTime = performance.now();
       
       xhr.addEventListener('loadend', function() {
@@ -1222,11 +1220,13 @@ export default function ProjectDetailsPage({ params }: ProjectDetailsPageProps) 
                                  variant="secondary" 
                                  size="sm" 
                                  className="absolute top-2 right-2 h-7 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                                 onClick={() => {
-                                     const code = document.querySelector('pre').innerText;
-                                     navigator.clipboard.writeText(code);
-                                     toast.success("Код скопирован! Вставьте перед </body>");
-                                 }}
+                                  onClick={() => {
+                                      const pre = document.querySelector('pre');
+                                      if (pre) {
+                                          navigator.clipboard.writeText(pre.innerText);
+                                          toast.success("Код скопирован! Вставьте перед </body>");
+                                      }
+                                  }}
                                >
                                  Копировать код
                                </Button>
